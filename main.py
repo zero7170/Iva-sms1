@@ -6,10 +6,10 @@ import json
 import os
 import gzip
 from datetime import datetime
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
+import requests
 import brotli
-from curl_cffi import requests as cf_requests
 from bs4 import BeautifulSoup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "8985912413:AAFu6r3RE7U0M3u0Wjr-ICej0pTgI-RtHVQ"
 CHAT_ID = 7747270285
+SCRAPER_API_KEY = "f8a74b5e01470b6283f21f20263fdc40"
 
 SELECT_DATE, MONITOR_RANGE, MONITOR_NUMBER = range(3)
 
@@ -29,22 +30,36 @@ SELECT_DATE, MONITOR_RANGE, MONITOR_NUMBER = range(3)
 
 class IVASSMSClient:
     def __init__(self):
-        self.scraper = cf_requests.Session(impersonate="chrome124")
+        self.session = requests.Session()
         self.base_url = "https://www.ivasms.com"
         self.logged_in = False
         self.csrf_token = None
+        self.cookies_str = ""
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
 
-    def decompress(self, response):
-        enc = response.headers.get('Content-Encoding', '').lower()
-        content = response.content
-        try:
-            if enc == 'gzip':
-                content = gzip.decompress(content)
-            elif enc == 'br':
-                content = brotli.decompress(content)
-            return content.decode('utf-8', errors='replace')
-        except:
-            return response.text
+    def scraper_get(self, url, extra_headers=None):
+        """GET عبر ScraperAPI مع الكوكيز"""
+        api_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={quote(url)}&keep_headers=true"
+        headers = {'Cookie': self.cookies_str}
+        if extra_headers:
+            headers.update(extra_headers)
+        return self.session.get(api_url, headers=headers, timeout=60)
+
+    def scraper_post(self, url, data, extra_headers=None):
+        """POST عبر ScraperAPI مع الكوكيز"""
+        api_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={quote(url)}&keep_headers=true"
+        headers = {
+            'Cookie': self.cookies_str,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': f"{self.base_url}/portal/sms/received",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+        return self.session.post(api_url, headers=headers, data=data, timeout=60)
 
     def load_cookies(self, path="cookies.json"):
         try:
@@ -64,37 +79,39 @@ class IVASSMSClient:
     def login(self, path="cookies.json"):
         cookies = self.load_cookies(path)
         if not cookies:
+            print("[-] No cookies found")
             return False
-        for k, v in cookies.items():
-            self.scraper.cookies.set(k, unquote(v))
+
+        # بناء cookie string
+        self.cookies_str = "; ".join([f"{k}={unquote(v)}" for k, v in cookies.items()])
+        print(f"[*] Cookies loaded: {list(cookies.keys())}")
+
         try:
-            self.scraper.get(self.base_url, timeout=15)
-            r = self.scraper.get(f"{self.base_url}/portal/sms/received", timeout=15)
+            r = self.scraper_get(f"{self.base_url}/portal/sms/received")
+            print(f"[*] Login status: {r.status_code}")
             if r.status_code == 200:
                 soup = BeautifulSoup(r.text, 'html.parser')
                 token = soup.find('input', {'name': '_token'})
                 if token:
                     self.csrf_token = token['value']
                     self.logged_in = True
+                    print("[+] Login successful!")
                     return True
-                print("[-] CSRF token not found")
-                print(r.text[:300])
+                print("[-] CSRF not found")
+                print(r.text[:500])
             else:
-                print(f"[-] Status: {r.status_code}")
-                print(r.text[:300])
+                print(r.text[:500])
         except Exception as e:
-            logger.error(f"Login error: {e}")
+            print(f"[-] Login error: {e}")
         return False
 
     def get_ranges(self, from_date, to_date=""):
         if not self.logged_in:
             return None
         try:
-            r = self.scraper.post(
+            r = self.scraper_post(
                 f"{self.base_url}/portal/sms/received/getsms",
-                data={'from': from_date, 'to': to_date, '_token': self.csrf_token},
-                headers={'X-Requested-With': 'XMLHttpRequest', 'Referer': f"{self.base_url}/portal/sms/received"},
-                timeout=15
+                data={'from': from_date, 'to': to_date, '_token': self.csrf_token}
             )
             if r.status_code == 200:
                 soup = BeautifulSoup(r.text, 'html.parser')
@@ -118,11 +135,9 @@ class IVASSMSClient:
         if not self.logged_in:
             return None
         try:
-            r = self.scraper.post(
+            r = self.scraper_post(
                 f"{self.base_url}/portal/sms/received/getsms/number",
-                data={'_token': self.csrf_token, 'start': from_date, 'end': to_date, 'range': range_id},
-                headers={'X-Requested-With': 'XMLHttpRequest', 'Referer': f"{self.base_url}/portal/sms/received"},
-                timeout=15
+                data={'_token': self.csrf_token, 'start': from_date, 'end': to_date, 'range': range_id}
             )
             if r.status_code == 200:
                 soup = BeautifulSoup(r.text, 'html.parser')
@@ -147,11 +162,9 @@ class IVASSMSClient:
         if not self.logged_in:
             return None
         try:
-            r = self.scraper.post(
+            r = self.scraper_post(
                 f"{self.base_url}/portal/sms/received/getsms/number/sms",
-                data={'_token': self.csrf_token, 'start': from_date, 'end': to_date, 'Number': phone, 'Range': range_id},
-                headers={'X-Requested-With': 'XMLHttpRequest', 'Referer': f"{self.base_url}/portal/sms/received"},
-                timeout=15
+                data={'_token': self.csrf_token, 'start': from_date, 'end': to_date, 'Number': phone, 'Range': range_id}
             )
             if r.status_code == 200:
                 soup = BeautifulSoup(r.text, 'html.parser')
@@ -209,7 +222,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ]
         keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="back")])
         await query.edit_message_text(
-            f"📱 *الأرقام المتاحة:*",
+            "📱 *الأرقام المتاحة:*",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -324,7 +337,7 @@ def main():
     if not client.login():
         print("[-] Failed to login. Check cookies.json")
         return
-    print("[+] Logged in successfully!")
+    print("[+] Bot started successfully!")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -348,4 +361,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-                
+                                  
