@@ -6,7 +6,7 @@ import json
 import os
 import gzip
 from datetime import datetime
-from urllib.parse import unquote, quote
+from urllib.parse import unquote
 
 import requests
 import brotli
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "8985912413:AAFu6r3RE7U0M3u0Wjr-ICej0pTgI-RtHVQ"
 CHAT_ID = 7747270285
-SCRAPER_API_KEY = "f8a74b5e01470b6283f21f20263fdc40"
+ZENROWS_API_KEY = "67f54db039b0d43066500bc6a5122c7461f960af"
 
 SELECT_DATE, MONITOR_RANGE, MONITOR_NUMBER = range(3)
 
@@ -42,7 +42,7 @@ class IVASSMSClient:
 
     def scraper_get(self, url, extra_headers=None):
         """GET عبر ScraperAPI مع الكوكيز"""
-        api_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={quote(url)}&keep_headers=true"
+        api_url = f"http://api.scraperapi.com?api_key={ZENROWS_API_KEY}&url={quote(url)}&keep_headers=true"
         headers = {'Cookie': self.cookies_str}
         if extra_headers:
             headers.update(extra_headers)
@@ -50,7 +50,7 @@ class IVASSMSClient:
 
     def scraper_post(self, url, data, extra_headers=None):
         """POST عبر ScraperAPI مع الكوكيز"""
-        api_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={quote(url)}&keep_headers=true"
+        api_url = f"http://api.scraperapi.com?api_key={ZENROWS_API_KEY}&url={quote(url)}&keep_headers=true"
         headers = {
             'Cookie': self.cookies_str,
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -361,4 +361,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-                                  
+         
