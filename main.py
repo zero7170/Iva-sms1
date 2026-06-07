@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "8985912413:AAFu6r3RE7U0M3u0Wjr-ICej0pTgI-RtHVQ"
 CHAT_ID = 7747270285
-ZENROWS_API_KEY = "67f54db039b0d43066500bc6a5122c7461f960af"
+ZENROWS_API_KEY = "1653d955ae9d42e33a4eea8e232dbc788b27dc24"
 
 SELECT_DATE, MONITOR_RANGE, MONITOR_NUMBER = range(3)
 
@@ -361,4 +361,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-        
+                    
