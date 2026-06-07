@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
-cloudscraper
+curl_cffi
 beautifulsoup4
 brotli
 requests
