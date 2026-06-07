@@ -6,7 +6,7 @@ import json
 import os
 import gzip
 from datetime import datetime
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 import requests
 import brotli
@@ -361,4 +361,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-         
+        
